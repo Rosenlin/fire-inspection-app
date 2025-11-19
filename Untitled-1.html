@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消防點檢WEBAPP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        .form-group button {
+            padding: 10px 15px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .form-group button:hover {
+            background-color: #0056b3;
+        }
+        #qr-reader {
+            width: 100%;
+            margin-top: 15px;
+        }
+        #error-message {
+            color: red;
+            display: none;
+        }
+    </style>
+    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>消防點檢表</h1>
+        <form id="inspectionForm">
+            <div class="form-group">
+                <label for="location">地點<span style="color: red;">*</span></label>
+                <input type="text" id="location" name="location" required>
+                <button type="button" id="scanQrCode">掃描QR碼</button>
+                <div id="qr-reader" style="display: none;"></div>
+            </div>
+            <div class="form-group">
+                <label for="inspector">檢查人<span style="color: red;">*</span></label>
+                <input type="text" id="inspector" name="inspector" required>
+            </div>
+            <div class="form-group">
+                <label for="remarks">備註</label>
+                <div>
+                    <input type="checkbox" id="normal" name="remarks" value="正常">
+                    <label for="normal">正常</label>
+                </div>
+                <div>
+                    <input type="checkbox" id="pending" name="remarks" value="待確認">
+                    <label for="pending">待確認</label>
+                </div>
+                <div>
+                    <input type="checkbox" id="abnormal" name="remarks" value="異常">
+                    <label for="abnormal">異常</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <div id="error-message">請填寫所有必填項</div>
+                <button type="submit">提交</button>
+            </div>
+        </form>
+    </div>
+    <script>
+        // 表單提交事件
+        document.getElementById('inspectionForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const location = document.getElementById('location').value.trim();
+            const inspector = document.getElementById('inspector').value.trim();
+            const remarks = Array.from(document.querySelectorAll('input[name="remarks"]:checked')).map(checkbox => checkbox.value);
+
+            if (!location || !inspector) {
+                const errorMessage = document.getElementById('error-message');
+                errorMessage.style.display = 'block';
+                return;
+            } else {
+                document.getElementById('error-message').style.display = 'none';
+            }
+
+            const data = {
+                location,
+                inspector,
+                remarks
+            };
+
+            console.log('提交的資料:', data); // 調試用日誌
+
+            fetch('/send-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert('點檢表已提交');
+                alert(`提交的資料:\n地點: ${location}\n檢查人: ${inspector}\n備註: ${remarks.join(', ')}`);
+                document.getElementById('inspectionForm').reset(); // 重置表單
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(`提交失敗，錯誤原因: ${error.message || '未知錯誤'}，請稍後再試`);
+            });
+        });
+
+        // 掃描QR碼按鈕事件
+        document.getElementById('scanQrCode').addEventListener('click', function() {
+            const qrReader = document.getElementById('qr-reader');
+            if (qrReader.style.display === 'block') {
+                return; // 已經打開，不再執行
+            }
+            qrReader.style.display = 'block';
+            const html5QrCode = new Html5Qrcode("qr-reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: 250
+                },
+                qrCodeMessage => {
+                    document.getElementById('location').value = qrCodeMessage;
+                    html5QrCode.stop();
+                    qrReader.style.display = 'none';
+                },
+                errorMessage => {
+                    console.log(`QR Code no longer in front of camera.`);
+                }
+            ).catch(err => {
+                console.log(`Unable to start scanning, error: ${err}`);
+            });
+        });
+    </script>
+</body>
+</html>
